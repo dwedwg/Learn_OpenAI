@@ -145,7 +145,7 @@ crawl(full_url)
 
 #Crawling Code Above
 ##########################################
-# generate context and answer questions below
+# Parse text and create embeddings below
 
 def remove_newlines(serie):
     serie = serie.str.replace('\n', ' ')
@@ -263,6 +263,9 @@ def create_context(question, df, max_len=1800, size="ada"):
         returns.append(row["text"])
 
     return "\n\n###\n\n".join(returns)
+
+
+#Answer Question using embeddings and context
 
 def answer_question(df,model="text-davinci-003",question="",max_len=1800,size="ada",debug=False,max_tokens=150,stop_sequence=None):
     
