@@ -16,7 +16,7 @@ from ast import literal_eval
 # Regex pattern to match a URL
 HTTP_URL_PATTERN = r'^http[s]{0,1}://.+$'
 
-openai.api_key = 'APIKEY'
+openai.api_key = 'OPENAIKEY'
 
 # Define URL
 domain = "microvision.com"
@@ -143,6 +143,10 @@ def crawl(url):
 crawl(full_url)
 
 
+#Crawling Code Above
+##########################################
+# generate context and answer questions below
+
 def remove_newlines(serie):
     serie = serie.str.replace('\n', ' ')
     serie = serie.str.replace('\\n', ' ')
@@ -150,10 +154,8 @@ def remove_newlines(serie):
     serie = serie.str.replace('  ', ' ')
     return serie
 
-# Create a list to store the text files
-texts=[]
+list_of_texts=[]
 
-# Get all the text files in the text directory
 for file in os.listdir("text/" + domain + "/"):
 
     # Open the file and read the text
@@ -163,10 +165,8 @@ for file in os.listdir("text/" + domain + "/"):
         # Omit the first 11 lines and the last 4 lines, then replace -, _, and #update with spaces.
         texts.append((file[11:-4].replace('-',' ').replace('_', ' ').replace('#update',''), text))
 
-# Create a dataframe from the list of texts
-df = pd.DataFrame(texts, columns = ['fname', 'text'])
+df = pd.DataFrame(list_of_texts, columns = ['fname', 'text'])
 
-# Set the text column to be the raw text with the newlines removed
 df['text'] = df.fname + ". " + remove_newlines(df.text)
 df.to_csv('processed/scraped.csv')
 df.head()
@@ -177,17 +177,14 @@ tokenizer = tiktoken.get_encoding("cl100k_base")
 df = pd.read_csv('processed/scraped.csv', index_col=0)
 df.columns = ['title', 'text']
 
-# Tokenize the text and save the number of tokens to a new column
 df['n_tokens'] = df.text.apply(lambda x: len(tokenizer.encode(x)))
 
-# Visualize the distribution of the number of tokens per row using a histogram
 df.n_tokens.hist()
 
 
 
 max_tokens = 500
 
-# Function to split the text into chunks of a maximum number of tokens
 def split_into_many(text, max_tokens = max_tokens):
 
     # Split the text into sentences
@@ -229,18 +226,14 @@ def split_into_many(text, max_tokens = max_tokens):
 
 shortened = []
 
-# Loop through the dataframe
 for row in df.iterrows():
 
-    # If the text is None, go to the next row
     if row[1]['text'] is None:
         continue
 
-    # If the number of tokens is greater than the max number of tokens, split the text into chunks
     if row[1]['n_tokens'] > max_tokens:
         shortened += split_into_many(row[1]['text'])
     
-    # Otherwise, add the text to the list of shortened texts
     else:
         shortened.append( row[1]['text'] )
 
@@ -259,65 +252,43 @@ df['embeddings'] = df['embeddings'].apply(literal_eval).apply(np.array)
 
 df.head()
 
-def create_context(
-    question, df, max_len=1800, size="ada"
-):
+def create_context(question, df, max_len=1800, size="ada"):
     """
     Create a context for a question by finding the most similar context from the dataframe
     """
 
-    # Get the embeddings for the question
     q_embeddings = openai.Embedding.create(input=question, engine='text-embedding-ada-002')['data'][0]['embedding']
 
-    # Get the distances from the embeddings
     df['distances'] = distances_from_embeddings(q_embeddings, df['embeddings'].values, distance_metric='cosine')
 
 
     returns = []
     cur_len = 0
 
-    # Sort by distance and add the text to the context until the context is too long
     for i, row in df.sort_values('distances', ascending=True).iterrows():
         
-        # Add the length of the text to the current length
         cur_len += row['n_tokens'] + 4
         
-        # If the context is too long, break
         if cur_len > max_len:
             break
         
-        # Else add it to the text that is being returned
         returns.append(row["text"])
 
-    # Return the context
     return "\n\n###\n\n".join(returns)
 
-def answer_question(
-    df,
-    model="text-davinci-003",
-    question="Am I allowed to publish model outputs to Twitter, without a human review?",
-    max_len=1800,
-    size="ada",
-    debug=False,
-    max_tokens=150,
-    stop_sequence=None
-):
-    """
-    Answer a question based on the most similar context from the dataframe texts
-    """
+def answer_question(df,model="text-davinci-003",question="",max_len=1800,size="ada",debug=False,max_tokens=150,stop_sequence=None):
+    
     context = create_context(
         question,
         df,
         max_len=max_len,
         size=size,
     )
-    # If debug, print the raw model response
     if debug:
         print("Context:\n" + context)
         print("\n\n")
 
     try:
-        # Create a completions using the questin and context
         response = openai.Completion.create(
             prompt=f"Answer the question based on the context below, and if the question can't be answered based on the context, say \"I don't know\"\n\nContext: {context}\n\n---\n\nQuestion: {question}\nAnswer:",
             temperature=0,
