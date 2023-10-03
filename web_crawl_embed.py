@@ -16,7 +16,7 @@ from ast import literal_eval
 # Regex pattern to match a URL
 HTTP_URL_PATTERN = r'^http[s]{0,1}://.+$'
 
-openai.api_key = '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'
+openai.api_key = 'OPENAIKEY'
 
 # Define URL
 domain = "microvision.com"
